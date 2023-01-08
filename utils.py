@@ -8,6 +8,23 @@ from sklearn import metrics
 import time
 from torch import optim
 from enum import Enum
+import random
+import time
+
+
+
+from os.path import exists
+
+
+import torchaudio
+import torch.nn.functional as F
+from torchvision import transforms,datasets
+from torch.utils.data import Dataset
+from torchvision.transforms import ToTensor, ToPILImage
+from PIL import Image
+import pandas as pd
+import random
+from imblearn.under_sampling import RandomUnderSampler
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Device(Enum):
@@ -15,6 +32,100 @@ class Device(Enum):
     GPU = "cuda"
 
 device = Device.CPU.value
+
+################################################################### DATASETS #####################################################################################
+
+class AudioDataset(Dataset):
+    
+    def __init__(self, data, dir_path, sampling_rate=44100, undersample=False) -> None:
+        super().__init__()
+        self.dir_path = dir_path
+        self.rus = None
+        if undersample:
+            self.rus = RandomUnderSampler(random_state=42)
+            self.id_train, self.y_train = self.rus.fit_resample(np.array(data["itemid"]).reshape(-1, 1), data["hasbird"].astype("float32"))
+            
+            self.id_train = pd.Series(self.id_train.reshape(-1))
+            self.y_train = pd.Series(self.y_train)
+            
+            print("Data has been resampled, New labels : ", self.y_train.value_counts())
+            
+        else:
+            self.id_train = data["itemid"]
+            self.y_train = data["hasbird"].astype("float32")
+            
+        self.sampling_rate = sampling_rate
+        self.sample_rate = sampling_rate
+        
+    def __len__(self):
+        return self.y_train.size
+    
+    def __getitem__(self, index):
+        audio,sample_rate = torchaudio.load(self.dir_path + self.id_train[index] + ".wav")
+        
+        if sample_rate != self.sampling_rate:
+            audio = torchaudio.functional.resample(audio, orig_freq=sample_rate, new_freq=self.sampling_rate)
+
+        return F.pad(audio.view(-1), [0,self.sampling_rate-audio.numel()], "constant", 0), self.y_train[index]
+    
+    def getaudio(self, index):
+        audio,sample_rate = torchaudio.load(self.dir_path + self.id_train[index] + ".wav")
+        
+        if sample_rate != self.sampling_rate:
+            audio = torchaudio.functional.resample(audio, orig_freq=sample_rate, new_freq=self.sampling_rate)
+            
+        return audio
+    
+    def get_stats(self):
+        
+        print(self.y_train.value_counts())
+    
+    def display(self):
+        index = random.randint(0, len(self.id_train))
+        waveform, sample_rate = torchaudio.load(self.dir_path + self.id_train[index] + ".wav")
+        plot_waveform(waveform, self.sample_rate)
+        plot_specgram(waveform, self.sample_rate)
+        print("Bird : ", self.y_train[index])
+
+
+class ImageDataset(Dataset):
+    
+    def __init__(self, data, dir_path, undersample=False) -> None:
+        super().__init__()
+        self.dir_path = dir_path
+        
+        self.rus = None
+        if undersample:
+            self.rus = RandomUnderSampler(random_state=42)
+            self.id_train, self.y_train = self.rus.fit_resample(np.array(data["itemid"]).reshape(-1, 1), data["hasbird"].astype("float32"))
+            
+            self.id_train = pd.Series(self.id_train.reshape(-1))
+            self.y_train = pd.Series(self.y_train)
+            
+            print("Data has been resampled, New labels : ", self.y_train.value_counts())
+            
+        else:
+            self.id_train = data["itemid"]
+            self.y_train = data["hasbird"].astype("float32")
+        
+    def __len__(self):
+        return self.y_train.size
+    
+    def __getitem__(self, index):
+        image = ToTensor()(Image.open(self.dir_path + self.id_train[index] + ".png"))
+
+        return image[:3, :, :], self.y_train[index]
+    
+    def display(self):
+        index = random.randint(0, len(self.id_train))
+        image = ToTensor()(Image.open(self.dir_path + self.id_train[index] + ".png"))
+        print(image.shape)
+        ToPILImage()(image).show()
+        print("Bird : ", self.y_train[index])
+        
+
+
+###################################################################################################################################################################
 
 def print_stats(waveform, sample_rate=None, src=None):
     if src:
