@@ -226,7 +226,7 @@ def save_waveform(waveform, sample_rate, name):
 
     num_channels, num_frames = waveform.shape
     
-    time_axis = torch.arange(0, num_frames) / sample_rate
+    time_axis = np.arange(0, num_frames) / sample_rate
     
     figure, axes = plt.subplots(num_channels, 1)
     if num_channels == 1:
