@@ -31,7 +31,7 @@ class Device(Enum):
     CPU = "cpu"
     GPU = "cuda"
 
-device = Device.CPU.value
+device = Device.GPU.value
 
 ################################################################### DATASETS #####################################################################################
 
@@ -115,6 +115,11 @@ class ImageDataset(Dataset):
         image = ToTensor()(Image.open(self.dir_path + self.id_train[index] + ".png"))
 
         return image[:3, :, :], self.y_train[index]
+    
+    def get_image(self, index):
+        image = ToTensor()(Image.open(self.dir_path + self.id_train[index] + ".png"))
+
+        return image[:3, :, :]
     
     def display(self):
         index = random.randint(0, len(self.id_train))
@@ -321,6 +326,14 @@ def train(model, train_dataset, val_dataset, epochs=30, lr=0.01, augmentation_pr
 
     criterion = nn.BCELoss()
 
+    losses = []
+    
+    val_losses = []
+    
+    accuracies = []
+    
+    val_accuracies = []
+
     for epoch in range(epochs):
         model = model.train()
 
@@ -387,6 +400,14 @@ def train(model, train_dataset, val_dataset, epochs=30, lr=0.01, augmentation_pr
 
         print("Validation Loss: {} || Validation Accuracy: {:.3f}".format(
             val_running_loss / (val_batch_idx + 1), val_running_accuracy / len(val_loader.dataset)))
+        
+        losses.append(running_loss / (batch_idx + 1))
+        val_losses.append(val_running_loss / (val_batch_idx + 1))
+        
+        accuracies.append(running_accuracy / len(train_loader.dataset))
+        val_accuracies.append(val_running_accuracy / len(val_loader.dataset))
+
+    return losses, accuracies, val_losses, val_accuracies
 
 
 def train_lstm(model, train_dataset, val_dataset, epochs=30, lr=0.01, batch_size=128, num_layers=3, hidden_size=100, augmentation_prob=0.5):
@@ -400,6 +421,14 @@ def train_lstm(model, train_dataset, val_dataset, epochs=30, lr=0.01, batch_size
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     criterion = nn.BCELoss()
+    
+    losses = []
+    
+    val_losses = []
+    
+    accuracies = []
+    
+    val_accuracies = []
 
     for epoch in range(epochs):
         model = model.train()
@@ -496,6 +525,13 @@ def train_lstm(model, train_dataset, val_dataset, epochs=30, lr=0.01, batch_size
         print("Validation Loss: {} || Validation Accuracy: {:.3f}".format(
             val_running_loss / (val_batch_idx + 1), val_running_accuracy / len(val_loader.dataset)))
 
+        losses.append(running_loss / (batch_idx + 1))
+        val_losses.append(val_running_loss / (val_batch_idx + 1))
+        
+        accuracies.append(running_accuracy / len(train_loader.dataset))
+        val_accuracies.append(val_running_accuracy / len(val_loader.dataset))
+
+    return losses, accuracies, val_losses, val_accuracies
 
 ####################################################################################### DATA AUGMENTATION #######################################################################################
 
@@ -503,3 +539,28 @@ def add_noise(audio):
     # Add noise to the audio
     audio += torch.randn_like(audio) * 0.1
     return audio
+
+
+#####################################################################################################################################################################################################
+
+def plot_loss_acc(loss, accuracy, val_loss, val_accuracy, filename):
+    N = np.arange(len(loss))
+
+    fig, axes = plt.subplots(1, 2, figsize=(20,5))
+
+    axes[0].plot(N, loss, label="Training Loss")
+    axes[0].plot(N, val_loss, label="Validation Loss")
+
+    axes[0].legend()
+
+    axes[1].plot(N, accuracy, label="Training Accuracy")
+    axes[1].plot(N, val_accuracy, label="Validation Accuracy")
+
+    axes[0].set_title("Loss over epochs")
+    axes[1].set_title("Accuracy over epochs")
+
+    axes[1].legend()
+
+    plt.savefig("./img/{}.png".format(filename))
+
+    plt.show()
